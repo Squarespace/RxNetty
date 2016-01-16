@@ -16,10 +16,19 @@
 
 package io.reactivex.netty.protocol.http;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.junit.Assert;
 import org.junit.Test;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import rx.Observable;
 import rx.functions.Action0;
 import rx.functions.Action1;
@@ -28,15 +37,6 @@ import rx.functions.Func1;
 import rx.observers.Subscribers;
 import rx.schedulers.Schedulers;
 import rx.schedulers.TestScheduler;
-
-import java.util.ArrayList;
-import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author Nitesh Kant
@@ -210,6 +210,22 @@ public class UnicastContentSubjectTest {
 
         Assert.assertTrue("Outer subscriber did not unsubscribe on inner completion.", outerUnsubscribe.get());
         Assert.assertTrue("Inner subscriber did not unsubscribe on inner completion.", innerUnsubscribe.get());
+    }
+
+    @Test
+    public void releaseAfterTimeoutFiresOnce() throws Exception {
+        final TestScheduler testScheduler = Schedulers.test();
+        UnicastContentSubject<ByteBuf> subject = UnicastContentSubject.createWithoutNoSubscriptionTimeout();
+
+        // now data is sent to the subject
+        ByteBuf buffer = Unpooled.buffer();
+        subject.onNext(buffer);
+
+        // forward time so timeouts can fire
+        testScheduler.advanceTimeBy(2, TimeUnit.SECONDS);
+
+        // assert that the buffer should have been freed
+        //Assert.assertTrue(buffer.release());
     }
 
     private static class OnUnsubscribeAction implements Action0 {

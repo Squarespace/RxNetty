@@ -16,6 +16,12 @@
 
 package io.reactivex.netty.protocol.http;
 
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
 import io.reactivex.netty.protocol.http.client.HttpClientResponse;
@@ -32,9 +38,6 @@ import rx.observers.Subscribers;
 import rx.schedulers.Schedulers;
 import rx.subjects.Subject;
 import rx.subscriptions.Subscriptions;
-
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 
 /**
  * A {@link Subject} implementation to be used by {@link HttpClientResponse} and {@link HttpServerRequest}.
@@ -65,13 +68,18 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
  */
 public final class UnicastContentSubject<T> extends Subject<T, T> {
 
+    private static final Logger LOG = LoggerFactory.getLogger(UnicastContentSubject.class);
+
     private final State<T> state;
+    private volatile boolean noTimeout;
     private volatile Observable<Long> timeoutScheduler;
 
     private UnicastContentSubject(State<T> state) {
         super(new OnSubscribeAction<T>(state));
         this.state = state;
         timeoutScheduler = Observable.empty(); // No timeout.
+        noTimeout = true;
+        LOG.info("Created with no timeout, state={}", state, new Exception("trace"));
     }
 
     private UnicastContentSubject(final State<T> state, long noSubscriptionTimeout, TimeUnit timeUnit,
@@ -79,6 +87,8 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
         super(new OnSubscribeAction<T>(state));
         this.state = state;
         timeoutScheduler = Observable.interval(noSubscriptionTimeout, timeUnit, scheduler).take(1); // Started when content arrives.
+        noTimeout = false;
+        LOG.info("Created with timeout={} unit={} state={}", noSubscriptionTimeout, timeUnit, state);
     }
 
     /**
@@ -139,16 +149,32 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
      * @return {@code true} if the subject was disposed by this call (if and only if there was no subscription).
      */
     public boolean disposeIfNotSubscribed() {
+        LOG.info("disposeIfNotSubscribed called state={} state.state={}", state, state.state);
         if (state.casState(State.STATES.UNSUBSCRIBED, State.STATES.DISPOSED)) {
-            state.bufferedObservable.subscribe(Subscribers.empty()); // Drain all items so that ByteBuf gets released.
+            state.bufferedObservable.subscribe(Subscribers.create(new Action1<Object>() {
+                @Override
+                public void call(Object b) {
+                    if (b instanceof ByteBuf) {
+                        ByteBuf bb = (ByteBuf) b;
+                        String mem = "";
+                        if (bb.hasMemoryAddress()) {
+                            mem = Long.toString(bb.memoryAddress());
+                        }
+                        LOG.info("disposeIfNotSubscribed disposing of buf={}:{}", b, mem);
+                        bb.touch("disposeIfNotSubscribed state.state = " + state.state);
+                    }
+                }
+            }));
             return true;
         }
         return false;
     }
 
     public void updateTimeoutIfNotScheduled(long noSubscriptionTimeout, TimeUnit timeUnit) {
+        LOG.info("updatetimeoutIfNotScheduled called state={} state.timeoutScheduled={}", state, state.timeoutScheduled, new Exception("trace"));
         if (0 == state.timeoutScheduled) {
             timeoutScheduler = Observable.interval(noSubscriptionTimeout, timeUnit).take(1);
+            noTimeout = false;
         }
     }
 
@@ -157,6 +183,7 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
 
         private final Action0 onUnsubscribe;
         private volatile Subscription releaseSubscription;
+        private volatile String lastMem;
 
         private State(Action0 onUnsubscribe) {
             this.onUnsubscribe = onUnsubscribe;
@@ -192,18 +219,22 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
                 = AtomicIntegerFieldUpdater.newUpdater(State.class, "timeoutScheduled");
 
         public boolean casState(STATES expected, STATES next) {
+            LOG.info("casState state={} expect={} next={} lastMem={}", this, expected, next, lastMem);
             return STATE_UPDATER.compareAndSet(this, expected.ordinal(), next.ordinal());
         }
 
         public boolean casTimeoutScheduled() {
+            LOG.info("casTimeoutScheduled state={} lastMem={}", this, lastMem);
             return TIMEOUT_SCHEDULED_UPDATER.compareAndSet(this, 0, 1);
         }
 
         public void setReleaseSubscription(final Subscription releaseSubscription) {
+            LOG.info("setReleaseSubscription: state={} lastMem={}", this, lastMem);
             this.releaseSubscription = releaseSubscription;
         }
 
         public void unsubscribeReleaseSubscription() {
+            LOG.info("unsubscribeReleaseSubscription: state={} lastMem={}", this, lastMem);
             if(releaseSubscription != null) {
                 releaseSubscription.unsubscribe();
             }
@@ -220,6 +251,7 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
 
         @Override
         public void call(final Subscriber<? super T> subscriber) {
+            LOG.info("OnSubscribeAction called state.state={} lastMem={}", state.state, state.lastMem);
             if (state.casState(State.STATES.UNSUBSCRIBED, State.STATES.SUBSCRIBED)) {
 
                 subscriber.add(Subscriptions.create(new Action0() {
@@ -245,20 +277,25 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
     private static class AutoReleaseByteBufOperator<I> implements Operator<I, I> {
         @Override
         public Subscriber<? super I> call(final Subscriber<? super I> subscriber) {
+            LOG.info("Added new AutoReleaseByteBufOperator");
             return new Subscriber<I>() {
                 @Override
                 public void onCompleted() {
+                    LOG.info("AutoReleaseByteBufOperator onComplete called");
                     subscriber.onCompleted();
                 }
 
                 @Override
                 public void onError(Throwable e) {
+                    LOG.info("AutoReleaseByteBufOperator onError called");
                     subscriber.onError(e);
                 }
 
                 @Override
                 public void onNext(I t) {
+                    LOG.info("AutoReleaseByteBufOperator onNext called, t={}:{}", t.toString(), memAddress(t));
                     try {
+                        touch(t, "onNext is next");
                         subscriber.onNext(t);
                     } finally {
                         ReferenceCountUtil.release(t);
@@ -279,18 +316,31 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
     }
 
     @Override
-    public void onNext(T t) {
+    public void onNext(final T t) {
+        state.lastMem = memAddress(t);
+        LOG.info("onNext called state={} buf={}:{}", state, t.toString(), state.lastMem, new Exception("trace"));
         // Retain so that post-buffer, the ByteBuf does not get released.
         // Release will be done after reading from the subject.
         ReferenceCountUtil.retain(t);
+        BufferUntilSubscriber<T> bufferedSubject = (BufferUntilSubscriber<T>) state.bufferedObserver;
+        touch(t, "bufferedObserver is next and bufferedObserver.hasObservers()= "
+                 + bufferedSubject.hasObservers()
+                 + " and this.state.state = " + state.state
+                 + " and state.timeoutScheduled = " + state.timeoutScheduled
+                 + " and noTimeout = " + noTimeout
+                 + " and state.releaseSubscription = " + state.releaseSubscription
+                 + " and buf =" + t.toString() + ":" + state.lastMem
+                 + " and state =" + state.toString());
         state.bufferedObserver.onNext(t);
 
         // Schedule timeout once and when not subscribed yet.
         if (state.casTimeoutScheduled() && state.state == State.STATES.UNSUBSCRIBED.ordinal()) {
+            LOG.info("scheduling release state={} buf={}:{}", state, t, state.lastMem, new Exception("trace"));
             // Schedule timeout after the first content arrives.
             state.setReleaseSubscription(timeoutScheduler.subscribe(new Action1<Long>() {
                 @Override
                 public void call(Long aLong) {
+                    LOG.info("timeout for state={} buf={}:{}", state, t, memAddress(t));
                     disposeIfNotSubscribed();
                 }
             }));
@@ -300,5 +350,20 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
     @Override
     public boolean hasObservers() {
         return state.state == State.STATES.SUBSCRIBED.ordinal();
+    }
+
+    public static String memAddress(Object t) {
+        if (t instanceof ByteBuf) {
+            ByteBuf b = (ByteBuf) t;
+            if (b.hasMemoryAddress()) {
+                return Long.toString(b.memoryAddress());
+            }
+        }
+        return "";
+    }
+    public static void touch(Object t, String hint) {
+        if (t instanceof ByteBuf) {
+            ((ByteBuf) t).touch(hint);
+        }
     }
 }

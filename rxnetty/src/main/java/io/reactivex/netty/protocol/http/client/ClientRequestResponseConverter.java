@@ -157,6 +157,7 @@ public class ClientRequestResponseConverter extends ChannelDuplexHandler {
             if (LastHttpContent.class.isAssignableFrom(recievedMsgClass)) {
                 stateToUse.responseReceiveComplete();
                 if (content.isReadable()) {
+                    content.touch("invokeContentOnNext is next");
                     invokeContentOnNext(content, stateToUse);
                 } else {
                     // CompositeByteBuf and possibly other implementations may still need to be
@@ -264,6 +265,7 @@ public class ClientRequestResponseConverter extends ChannelDuplexHandler {
     @SuppressWarnings("unchecked")
     private void invokeContentOnNext(Object nextObject, ResponseState stateToUse) {
         try {
+            //stateToUse.contentSubject.updateTimeoutIfNotScheduled(1, TimeUnit.MILLISECONDS);
             stateToUse.contentSubject.onNext(nextObject);
         } catch (ClassCastException e) {
             stateToUse.contentSubject.onError(e);
