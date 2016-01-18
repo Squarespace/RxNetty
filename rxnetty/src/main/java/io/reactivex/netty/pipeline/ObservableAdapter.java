@@ -15,6 +15,9 @@
  */
 package io.reactivex.netty.pipeline;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.util.ReferenceCountUtil;
@@ -29,6 +32,7 @@ import rx.Observer;
  * @author Nitesh Kant
  */
 public class ObservableAdapter extends ChannelInboundHandlerAdapter {
+    private static final Logger LOG = LoggerFactory.getLogger(ObservableAdapter.class);
 
     @SuppressWarnings("rawtypes")
     /*Nullable*/ private Observer bridgedObserver; /*This actually is an Rx Subject*/
@@ -37,6 +41,7 @@ public class ObservableAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void handlerAdded(ChannelHandlerContext ctx) throws Exception {
+        LOG.info("handlerAdded this={} channel={}", this, ctx.channel());
         Boolean autoRelease = ctx.channel().attr(ObservableConnection.AUTO_RELEASE_BUFFERS).get();
         autoReleaseBuffers = null == autoRelease || autoRelease;
         super.handlerAdded(ctx);
@@ -45,6 +50,7 @@ public class ObservableAdapter extends ChannelInboundHandlerAdapter {
     @SuppressWarnings("unchecked")
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+        LOG.info("channelRead this={} channel={} msg={}", this, ctx.channel(), msg);
         if (null != bridgedObserver) {
             try {
                 bridgedObserver.onNext(msg);
@@ -60,6 +66,7 @@ public class ObservableAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        LOG.info("exceptionCaught this={} channel={}", this, ctx.channel(), cause);
         if (null != bridgedObserver) {
             bridgedObserver.onError(cause);
         }
@@ -67,6 +74,7 @@ public class ObservableAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        LOG.info("channelInactive this={} channel={}", this, ctx.channel());
         if (null != bridgedObserver) {
             bridgedObserver.onCompleted();
         }
@@ -74,6 +82,7 @@ public class ObservableAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object event) throws Exception {
+        LOG.info("userEventTriggered this={} channel={} event={}", this, ctx.channel(), event);
         if (event instanceof NewRxConnectionEvent) {
             NewRxConnectionEvent rxConnectionEvent = (NewRxConnectionEvent) event;
             bridgedObserver = rxConnectionEvent.getConnectedObserver();
