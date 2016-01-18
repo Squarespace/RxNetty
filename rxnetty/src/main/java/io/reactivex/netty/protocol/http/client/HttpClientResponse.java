@@ -16,6 +16,14 @@
 
 package io.reactivex.netty.protocol.http.client;
 
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.handler.codec.http.Cookie;
 import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
@@ -23,14 +31,7 @@ import io.netty.handler.codec.http.HttpVersion;
 import io.reactivex.netty.protocol.http.AbstractHttpContentHolder;
 import io.reactivex.netty.protocol.http.CookiesHolder;
 import io.reactivex.netty.protocol.http.UnicastContentSubject;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import rx.Observable;
-
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.regex.Pattern;
 
 /**
  * A Http response object used by {@link HttpClient}. <br>
@@ -94,6 +95,7 @@ public class HttpClientResponse<T> extends AbstractHttpContentHolder<T> {
     }
 
     void updateNoContentSubscriptionTimeoutIfNotScheduled(long noContentSubscriptionTimeout, TimeUnit timeUnit) {
+        logger.info("updateNoContentSubscriptionTimeoutIfNotScheduled this={} content={}", this, content);
         content.updateTimeoutIfNotScheduled(noContentSubscriptionTimeout, timeUnit);
     }
 

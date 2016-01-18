@@ -20,6 +20,9 @@ package io.reactivex.netty.protocol.http.client;
 import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
 import io.netty.channel.ChannelDuplexHandler;
@@ -76,6 +79,8 @@ import rx.functions.Action0;
  * @author Nitesh Kant
  */
 public class ClientRequestResponseConverter extends ChannelDuplexHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ClientRequestResponseConverter.class);
 
     /**
      * This attribute stores the value of any dynamic idle timeout value sent via an HTTP keep alive header.
@@ -158,6 +163,7 @@ public class ClientRequestResponseConverter extends ChannelDuplexHandler {
                 stateToUse.responseReceiveComplete();
                 if (content.isReadable()) {
                     content.touch("invokeContentOnNext is next");
+                    LOG.info("invokeContentOnNext contentSubject={} connection={} channel={}", stateToUse.contentSubject, stateToUse.connection, stateToUse.connection.getChannel());
                     invokeContentOnNext(content, stateToUse);
                 } else {
                     // CompositeByteBuf and possibly other implementations may still need to be
@@ -265,7 +271,6 @@ public class ClientRequestResponseConverter extends ChannelDuplexHandler {
     @SuppressWarnings("unchecked")
     private void invokeContentOnNext(Object nextObject, ResponseState stateToUse) {
         try {
-            //stateToUse.contentSubject.updateTimeoutIfNotScheduled(1, TimeUnit.MILLISECONDS);
             stateToUse.contentSubject.onNext(nextObject);
         } catch (ClassCastException e) {
             stateToUse.contentSubject.onError(e);
@@ -403,6 +408,7 @@ public class ClientRequestResponseConverter extends ChannelDuplexHandler {
         private void setConnection(AbstractConnectionEvent<?> connectionEvent) {
             connection = connectionEvent.getConnection();
             connInputObsrvr = connectionEvent.getConnectedObserver();
+            LOG.info("ResponseState={} setConnection connection={} connInputObsrvr={} channel={}", this, connection, connInputObsrvr, connection.getChannel(), new Exception("trace"));
         }
 
         private void nowWaitingForResponse() {

@@ -16,6 +16,9 @@
 
 package io.reactivex.netty.channel;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -41,6 +44,8 @@ public class ObservableConnection<I, O> extends DefaultChannelWriter<O> {
 
     public static AttributeKey<Boolean> AUTO_RELEASE_BUFFERS = AttributeKey.valueOf("rxnetty_auto_release_buffers");
 
+    private static final Logger LOG = LoggerFactory.getLogger(ObservableConnection.class);
+
     private Subject<I, I> inputSubject;
     @SuppressWarnings("rawtypes")private final MetricEventsSubject eventsSubject;
     private final ChannelMetricEventProvider metricEventProvider;
@@ -55,6 +60,7 @@ public class ObservableConnection<I, O> extends DefaultChannelWriter<O> {
     }
 
     public Observable<I> getInput() {
+        LOG.info("getInput called this={} channel={}", this, getChannel(), new Exception("trace"));
         return inputSubject;
     }
 
@@ -63,6 +69,7 @@ public class ObservableConnection<I, O> extends DefaultChannelWriter<O> {
                                                             final ChannelMetricEventProvider metricEventProvider) {
         final ObservableConnection<I, O> toReturn = new ObservableConnection<I, O>(channel, metricEventProvider,
                                                                                 eventsSubject);
+        LOG.info("created ObservableConnection={} channel={}", toReturn, channel);
         /**
          * Sending the event here does not leak "this" via the NewRxConnectionEvent as opposed to doing it inside the
          * constructor.

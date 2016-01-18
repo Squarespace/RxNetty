@@ -17,6 +17,11 @@
 
 package io.reactivex.netty.protocol.http.client;
 
+import java.util.concurrent.TimeUnit;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.reactivex.netty.channel.ObservableConnection;
 import io.reactivex.netty.client.ClientMetricsEvent;
 import io.reactivex.netty.metrics.Clock;
@@ -28,14 +33,13 @@ import rx.functions.Action0;
 import rx.functions.Action1;
 import rx.subscriptions.CompositeSubscription;
 
-import java.util.concurrent.TimeUnit;
-
 /**
  * @author Nitesh Kant
  */
 class RequestProcessingOperator<I, O> implements Observable.Operator<HttpClientResponse<O>,
         ObservableConnection<HttpClientResponse<O>, HttpClientRequest<I>>>{
 
+    private static final Logger LOG = LoggerFactory.getLogger(RequestProcessingOperator.class);
     private final HttpClientRequest<I> request;
     private final MetricEventsSubject<ClientMetricsEvent<?>> eventsSubject;
     private final long responseSubscriptionTimeoutMs;
@@ -70,13 +74,14 @@ class RequestProcessingOperator<I, O> implements Observable.Operator<HttpClientR
 
                     @Override
                     public void onNext(final ObservableConnection<HttpClientResponse<O>, HttpClientRequest<I>> connection) {
-
+                        LOG.info("On next for connection={} channel={}", connection, connection.getChannel(), new Exception("trace"));
                         // Why don't we close the connection on unsubscribe?
                         // See issue: https://github.com/ReactiveX/RxNetty/issues/225
                         cs.add(connection.getInput()
                                          .doOnNext(new Action1<HttpClientResponse<O>>() {
                                              @Override
                                              public void call(final HttpClientResponse<O> response) {
+                                                 LOG.info("updateNoContentSubscriptionTimeoutIfNotScheduled connection={} channel={}", connection, connection.getChannel(), new Exception("trace"));
                                                  response.updateNoContentSubscriptionTimeoutIfNotScheduled(
                                                          responseSubscriptionTimeoutMs,
                                                          TimeUnit.MILLISECONDS);

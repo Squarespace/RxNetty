@@ -16,17 +16,18 @@
 
 package io.reactivex.netty.client;
 
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.netty.channel.Channel;
 import io.reactivex.netty.channel.ChannelMetricEventProvider;
 import io.reactivex.netty.channel.ObservableConnection;
 import io.reactivex.netty.metrics.MetricEventsSubject;
 import io.reactivex.netty.protocol.http.client.ClientRequestResponseConverter;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import rx.Observable;
 import rx.subjects.PublishSubject;
-
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * An extension of {@link ObservableConnection} that is used by {@link ConnectionPool}.
@@ -126,6 +127,7 @@ public class PooledConnection<I, O> extends ObservableConnection<I, O> {
         PublishSubject<I> newInputSubject = PublishSubject.create();
         updateInputSubject(newInputSubject);
         ConnectionReuseEvent reuseEvent = new ConnectionReuseEvent(this, newInputSubject);
+        logger.info("ConnectionReuseEvent reuseEvent={} channel={}", reuseEvent, getChannel());
         getChannel().pipeline().fireUserEventTriggered(reuseEvent);
     }
 

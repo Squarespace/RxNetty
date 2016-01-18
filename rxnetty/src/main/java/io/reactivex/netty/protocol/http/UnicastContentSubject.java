@@ -79,7 +79,7 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
         this.state = state;
         timeoutScheduler = Observable.empty(); // No timeout.
         noTimeout = true;
-        LOG.info("Created with no timeout, state={}", state, new Exception("trace"));
+        LOG.info("Created with no timeout, this={}, state={}", this, state, new Exception("trace"));
     }
 
     private UnicastContentSubject(final State<T> state, long noSubscriptionTimeout, TimeUnit timeUnit,
@@ -88,7 +88,7 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
         this.state = state;
         timeoutScheduler = Observable.interval(noSubscriptionTimeout, timeUnit, scheduler).take(1); // Started when content arrives.
         noTimeout = false;
-        LOG.info("Created with timeout={} unit={} state={}", noSubscriptionTimeout, timeUnit, state);
+        LOG.info("Created with timeout={} unit={} this={} state={}", noSubscriptionTimeout, timeUnit, this, state);
     }
 
     /**
@@ -171,7 +171,7 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
     }
 
     public void updateTimeoutIfNotScheduled(long noSubscriptionTimeout, TimeUnit timeUnit) {
-        LOG.info("updatetimeoutIfNotScheduled called state={} state.timeoutScheduled={}", state, state.timeoutScheduled, new Exception("trace"));
+        LOG.info("updatetimeoutIfNotScheduled called this={} state={} state.timeoutScheduled={}", this, state, state.timeoutScheduled, new Exception("trace"));
         if (0 == state.timeoutScheduled) {
             timeoutScheduler = Observable.interval(noSubscriptionTimeout, timeUnit).take(1);
             noTimeout = false;
@@ -325,6 +325,7 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
         BufferUntilSubscriber<T> bufferedSubject = (BufferUntilSubscriber<T>) state.bufferedObserver;
         touch(t, "bufferedObserver is next and bufferedObserver.hasObservers()= "
                  + bufferedSubject.hasObservers()
+                 + " and UnicastContentSubject = " + this
                  + " and this.state.state = " + state.state
                  + " and state.timeoutScheduled = " + state.timeoutScheduled
                  + " and noTimeout = " + noTimeout
