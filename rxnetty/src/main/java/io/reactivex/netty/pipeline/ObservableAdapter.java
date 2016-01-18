@@ -50,7 +50,7 @@ public class ObservableAdapter extends ChannelInboundHandlerAdapter {
     @SuppressWarnings("unchecked")
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        LOG.info("channelRead this={} channel={} msg={}", this, ctx.channel(), msg);
+        LOG.info("channelRead this={} channel={} msg={} bridgedObserver={}", this, ctx.channel(), msg, bridgedObserver);
         if (null != bridgedObserver) {
             try {
                 bridgedObserver.onNext(msg);
@@ -82,14 +82,18 @@ public class ObservableAdapter extends ChannelInboundHandlerAdapter {
 
     @Override
     public void userEventTriggered(ChannelHandlerContext ctx, Object event) throws Exception {
-        LOG.info("userEventTriggered this={} channel={} event={}", this, ctx.channel(), event);
+        boolean setBridgedObserver = false;
         if (event instanceof NewRxConnectionEvent) {
             NewRxConnectionEvent rxConnectionEvent = (NewRxConnectionEvent) event;
             bridgedObserver = rxConnectionEvent.getConnectedObserver();
+            setBridgedObserver = true;
         } else if (event instanceof ConnectionReuseEvent) {
             ConnectionReuseEvent reuseEvent = (ConnectionReuseEvent) event;
             bridgedObserver = reuseEvent.getConnectedObserver();
+            setBridgedObserver = true;
         }
+
+        LOG.info("userEventTriggered this={} channel={} event={} setBridgedObserver={} bridgedObserver={}", this, ctx.channel(), event, setBridgedObserver, bridgedObserver);
 
         super.userEventTriggered(ctx, event);
     }
