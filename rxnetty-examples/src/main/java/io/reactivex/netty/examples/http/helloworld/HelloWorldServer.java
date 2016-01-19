@@ -16,12 +16,14 @@
 
 package io.reactivex.netty.examples.http.helloworld;
 
+import java.nio.charset.Charset;
+import java.util.Map;
+
 import io.netty.buffer.ByteBuf;
+import io.netty.handler.codec.http.HttpResponseStatus;
 import io.reactivex.netty.RxNetty;
 import io.reactivex.netty.protocol.http.server.HttpServer;
 import io.reactivex.netty.protocol.http.server.HttpServerRequest;
-
-import java.util.Map;
 
 public final class HelloWorldServer {
 
@@ -33,12 +35,24 @@ public final class HelloWorldServer {
         this.port = port;
     }
 
-public HttpServer<ByteBuf, ByteBuf> createServer() {
-    return RxNetty.createHttpServer(port, (request, response) -> {
-        printRequestHeader(request);
-        return response.writeStringAndFlush("Hello World!");
-    });
-}
+    public HttpServer<ByteBuf, ByteBuf> createServer() {
+        return RxNetty.createHttpServer(port, (request, response) -> {
+            printRequestHeader(request);
+            return response.writeStringAndFlush("Hello World!");
+        });
+    }
+
+    public HttpServer<ByteBuf, ByteBuf> createServerChunked() {
+        return RxNetty.createHttpServer(port, (request, response) -> {
+            byte[] message = "{\"hello\": \"world\"}".getBytes(Charset.defaultCharset());
+            response.setStatus(HttpResponseStatus.OK);
+            response.writeBytes(response
+                .getAllocator()
+                .buffer(message.length)
+                .writeBytes(message));
+            return response.close();
+        });
+    }
 
     public void printRequestHeader(HttpServerRequest<ByteBuf> request) {
         System.out.println("New request received");
