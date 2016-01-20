@@ -24,6 +24,7 @@ import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
 import io.reactivex.netty.protocol.http.client.HttpClientResponse;
 import io.reactivex.netty.protocol.http.server.HttpServerRequest;
 import rx.Observable;
@@ -162,6 +163,8 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
                         }
                         LOG.info("disposeIfNotSubscribed disposing of this={} state={} buf={}:{}", this, state, b, mem);
                         bb.touch("disposeIfNotSubscribed this=" + this + "state.state=" + state.state);
+                    } else {
+                        LOG.info("disposeIfNotSubscribed for Non-ByteBuf object={} this={} state={}", b, this, state);
                     }
                 }
             }));
@@ -295,9 +298,10 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
                 public void onNext(I t) {
                     LOG.info("AutoReleaseByteBufOperator onNext called, t={}:{}", t.toString(), memAddress(t));
                     try {
-                        touch(t, "onNext is next");
+                        touch(t, "onNext is next subscriber=" + subscriber + " refCount=" + refCount(t));
                         subscriber.onNext(t);
                     } finally {
+                        touch(t, "onNext complete refCount=" + refCount(t));
                         ReferenceCountUtil.release(t);
                     }
                 }
@@ -322,9 +326,14 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
         // Retain so that post-buffer, the ByteBuf does not get released.
         // Release will be done after reading from the subject.
         ReferenceCountUtil.retain(t);
+        int refCount = -1;
+        if (t instanceof ReferenceCounted) {
+           refCount = ((ReferenceCounted) t).refCnt();
+        }
         BufferUntilSubscriber<T> bufferedSubject = (BufferUntilSubscriber<T>) state.bufferedObserver;
         touch(t, "bufferedObserver is next and bufferedObserver.hasObservers()= "
                  + bufferedSubject.hasObservers()
+                 + " and refCount = " + refCount
                  + " and UnicastContentSubject = " + this
                  + " and this.state.state = " + state.state
                  + " and state.timeoutScheduled = " + state.timeoutScheduled
@@ -362,9 +371,17 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
         }
         return "";
     }
+
     public static void touch(Object t, String hint) {
         if (t instanceof ByteBuf) {
             ((ByteBuf) t).touch(hint);
         }
+    }
+
+    public static int refCount(Object t) {
+        if (t instanceof ReferenceCounted) {
+            return ((ReferenceCounted) t).refCnt();
+        }
+        return -1;
     }
 }
