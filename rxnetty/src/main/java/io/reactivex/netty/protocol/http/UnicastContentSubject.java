@@ -149,7 +149,7 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
      * @return {@code true} if the subject was disposed by this call (if and only if there was no subscription).
      */
     public boolean disposeIfNotSubscribed() {
-        LOG.info("disposeIfNotSubscribed called state={} state.state={}", state, state.state);
+        LOG.info("disposeIfNotSubscribed called this={} state={} state.state={}", this, state, state.state);
         if (state.casState(State.STATES.UNSUBSCRIBED, State.STATES.DISPOSED)) {
             state.bufferedObservable.subscribe(Subscribers.create(new Action1<Object>() {
                 @Override
@@ -160,8 +160,8 @@ public final class UnicastContentSubject<T> extends Subject<T, T> {
                         if (bb.hasMemoryAddress()) {
                             mem = Long.toString(bb.memoryAddress());
                         }
-                        LOG.info("disposeIfNotSubscribed disposing of buf={}:{}", b, mem);
-                        bb.touch("disposeIfNotSubscribed state.state = " + state.state);
+                        LOG.info("disposeIfNotSubscribed disposing of this={} state={} buf={}:{}", this, state, b, mem);
+                        bb.touch("disposeIfNotSubscribed this=" + this + "state.state=" + state.state);
                     }
                 }
             }));
