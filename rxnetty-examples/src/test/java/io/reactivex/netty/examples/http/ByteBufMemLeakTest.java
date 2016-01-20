@@ -12,6 +12,7 @@ import org.junit.Test;
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ResourceLeakDetector;
 import io.reactivex.netty.RxNetty;
+import io.reactivex.netty.client.RxClient;
 import io.reactivex.netty.examples.http.helloworld.HelloWorldServer;
 import io.reactivex.netty.protocol.http.client.HttpClient;
 import io.reactivex.netty.protocol.http.client.HttpClientRequest;
@@ -36,7 +37,14 @@ public class ByteBufMemLeakTest {
 
   @Test
   public void testMemLeak() throws Exception {
-    HttpClient<ByteBuf, ByteBuf> client = RxNetty.createHttpClient("localhost", server.getServerPort());
+    RxClient.ClientConfig config = new HttpClient.HttpClientConfig.Builder()
+        .readTimeout(500, TimeUnit.MILLISECONDS)
+        .responseSubscriptionTimeout(1, TimeUnit.MILLISECONDS)
+        .build();
+    HttpClient<ByteBuf, ByteBuf> client =
+        RxNetty.<ByteBuf, ByteBuf>newHttpClientBuilder("localhost", server.getServerPort())
+        .config(config)
+        .build();
     HttpClientRequest<ByteBuf> req = HttpClientRequest.createGet("/hello");
 
     int nThreads = Runtime.getRuntime().availableProcessors() * 2;
@@ -47,7 +55,7 @@ public class ByteBufMemLeakTest {
         while (true) {
           try {
             Observable.merge(
-                Observable.timer(1, TimeUnit.SECONDS)
+                Observable.timer(250, TimeUnit.MILLISECONDS)
                     .flatMap((l) -> Observable.error(new TimeoutException("test"))),
                 client.submit(req))
                 .map((next) -> {
