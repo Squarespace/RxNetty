@@ -162,7 +162,7 @@ public class ClientRequestResponseConverter extends ChannelDuplexHandler {
             if (LastHttpContent.class.isAssignableFrom(recievedMsgClass)) {
                 stateToUse.responseReceiveComplete();
                 if (content.isReadable()) {
-                    content.touch("invokeContentOnNext is next");
+                    content.touch("invokeContentOnNext is next channel=" + stateToUse.connection.getChannel());
                     LOG.info("invokeContentOnNext contentSubject={} connection={} channel={}", stateToUse.contentSubject, stateToUse.connection, stateToUse.connection.getChannel());
                     invokeContentOnNext(content, stateToUse);
                 } else {
